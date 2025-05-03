@@ -74,7 +74,58 @@ async def analyze_file(file: UploadFile = File(...)):
             ]
         )
         result = response.choices[0].message.content
-        return HTMLResponse(f"<pre style='white-space: pre-wrap; word-wrap: break-word;'>{result}</pre>")
+        return HTMLResponse(f"""
+        <!DOCTYPE html>
+        <html lang='ru'>
+        <head>
+            <meta charset='UTF-8'>
+            <title>Результат анализа</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    background: #f3f4f6;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                }
+                .result-card {
+                    background: #ffffff;
+                    border-radius: 20px;
+                    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+                    max-width: 600px;
+                    padding: 30px 25px;
+                    text-align: left;
+                    white-space: pre-wrap;
+                    overflow-y: auto;
+                    max-height: 90vh;
+                }
+                h1 {
+                    color: #1f2937;
+                    font-size: 1.4rem;
+                    margin-bottom: 20px;
+                }
+                .back-link {
+                    display: inline-block;
+                    margin-top: 20px;
+                    color: #3b82f6;
+                    text-decoration: none;
+                }
+                .back-link:hover {
+                    text-decoration: underline;
+                }
+            </style>
+        </head>
+        <body>
+            <div class='result-card'>
+                <h1>Результат анализа</h1>
+                {result}
+                <a href='/' class='back-link'>← Назад</a>
+            </div>
+        </body>
+        </html>
+        """)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
