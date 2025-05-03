@@ -7,9 +7,9 @@ import os
 from docx import Document
 import PyPDF2
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.getenv("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")
 if not openai.api_key:
-    raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
+    raise ValueError("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")
 
 app = FastAPI()
 
