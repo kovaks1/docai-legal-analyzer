@@ -1,15 +1,17 @@
+import ssl  # Ensure the ssl module is explicitly imported for environments that need it
+import os
+import uvicorn
+import openai
+import PyPDF2
+from docx import Document
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-import openai
-import os
-from docx import Document
-import PyPDF2
 
-openai.api_key = os.getenv("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")
-if not openai.api_key:
-    raise ValueError("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")
+# Инициализация клиента OpenAI с использованием новой версии API
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+if not client.api_key:
+    raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
 
 app = FastAPI()
 
@@ -29,7 +31,9 @@ def extract_text_from_pdf(file):
     reader = PyPDF2.PdfReader(file.file)
     text = ""
     for page in reader.pages:
-        text += page.extract_text() + "\n"
+        extracted = page.extract_text()
+        if extracted:
+            text += extracted + "\n"
     return text
 
 PROMPT_TEMPLATE = """
@@ -49,9 +53,34 @@ PROMPT_TEMPLATE = """
 ТЕКСТ ДОГОВОРА:
 """
 
-@app.get("/", response_class=HTMLResponse)
+@app.post("/analyze")
+async def analyze_file(file: UploadFile = File(...)):
+    ext = file.filename.split(".")[-1].lower()
+    if ext == "docx":
+        text = extract_text_from_docx(file)
+    elif ext == "pdf":
+        text = extract_text_from_pdf(file)
+    else:
+        return JSONResponse(status_code=400, content={"error": "Unsupported file type."})
+
+    prompt = PROMPT_TEMPLATE + text
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Ты — юридический ассистент."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        result = response.choices[0].message.content
+        return HTMLResponse(f"<pre style='white-space: pre-wrap; word-wrap: break-word;'>{result}</pre>")
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/")
 def read_root():
-    return """
+    content = """
     <!DOCTYPE html>
     <html lang='ru'>
     <head>
@@ -82,30 +111,7 @@ def read_root():
     </body>
     </html>
     """
-
-@app.post("/analyze")
-async def analyze_contract(file: UploadFile = File(...)):
-    if file.filename.endswith(".docx"):
-        contract_text = extract_text_from_docx(file)
-    elif file.filename.endswith(".pdf"):
-        contract_text = extract_text_from_pdf(file)
-    else:
-        return JSONResponse(content={"error": "Unsupported file format."}, status_code=400)
-
-    prompt = PROMPT_TEMPLATE + contract_text
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Ты — юридический ассистент."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        result = response["choices"][0]["message"]["content"]
-        return HTMLResponse(f"<pre style='white-space: pre-wrap; word-wrap: break-word;'>{result}</pre>")
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+    return HTMLResponse(content=content)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
